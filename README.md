@@ -12,4 +12,4 @@ Instructions
 
 The results will look something like this:
 
-![Sample script output](http://imgur.com/OXIEbzh)
+![Sample script output](http://i.imgur.com/OXIEbzh.png)

@@ -66,6 +66,8 @@ while true; do
 				exit 1;
 			fi;
 			break;;
+		* ) echo -e "${RED}Invalid selection${NONE}"
+			;;
 	esac
 done
 
@@ -83,15 +85,31 @@ else
 fi
 
 # Perform initial mysql configuration
-echo -e "Importing ${BLUE}MySQL${NONE} database."
-read -sp "MySQL root password: " MYSQL_PW
-mysql -u root -p$MYSQL_PW < staging_prod.sql
-echo -e "\nImport ${GREEN}complete${NONE}."
+while true; do
+	echo -e "Would you like to import the MySQL database, overwriting your current one (y/n)?"
+	echo -e "${BLUE}Note:${NONE} This step is required to set up path.php correctly the first time."
+	read importmysql
+	case $importmysql in
+		[yY] )
+			# Do actual DB import
+			echo -e "Importing ${BLUE}MySQL${NONE} database.";
+			read -sp "MySQL root password: " MYSQL_PW;
+			mysql -u root -p$MYSQL_PW < staging_prod.sql;
+			echo -e "\nImport ${GREEN}complete${NONE}.";
 
-# Now, copy over path.php and fill in the actual mysql password chosen
-cd /swcombine/libs
-cat path.template.php | sed -e "s/db\.pass', 'swc'/db.pass', '$MYSQL_PW'/" > path.php
-cd ~
+			# Now, copy over path.php and fill in the actual mysql password chosen
+			cd /swcombine/libs
+			cat path.template.php | sed -e "s/db\.pass', 'swc'/db.pass', '$MYSQL_PW'/" > path.php
+			cd ~
+			break;;
+		[nN] )
+			echo -e "${BLUE}Skipping${NONE} MySQL import.";
+			break;;
+		* )
+			echo -e "${RED}Invalid${NONE} selection."
+			;;
+	esac
+done
 
 # Configure cron jobs
 echo -e "Configuring ${BLUE}cron jobs${NONE}"
@@ -101,6 +119,11 @@ if [ $? -ne 0 ]; then
 	echo -e "${GREEN}Added${NONE} SWC jobs to crontab"
 else
 	echo -e "Cron jobs ${GREEN}already configured${NONE}."
+fi
+
+if [ ! -d /swcombine/logs ]; then
+	sudo mkdir /swcombine/logs
+	chmod 0777 /swcombine/logs
 fi
 
 echo -e "${BLUE}SWC VM server${NONE} setup ${GREEN}complete${NONE}."

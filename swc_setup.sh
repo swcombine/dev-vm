@@ -16,7 +16,7 @@ function do_install {
 	sudo apt-get -y install $1 >/dev/null
 	if [ $? -ne 0 ]; then
 		echo -e "${RED}Failed!${NONE}";
-		#exit 1;
+		exit 1;
 	else
 		echo -e "${GREEN}Successful.${NONE}";
 	fi
@@ -31,8 +31,19 @@ if [ ! -e "staging_prod.sql" ]; then
 	exit 1;
 fi
 
-# First, install mysql
-do_install "mysql-client mysql-server" "MySQL"
+# First, install mysql, if need be
+dpkg-query -W --showformat='${Status}' mysql-server | grep "ok installed" >/dev/null
+if [ $? -ne 0 ]; then
+	echo -e "Please enter your ${BLUE}MySQL${NONE} root password (do not leave it blank):";
+	read -s MYSQL_PW;
+	echo "mysql-server-5.5 mysql-server/root_password password $MYSQL_PW" | sudo debconf-set-selections
+	echo "mysql-server-5.5 mysql-server/root_password_again password $MYSQL_PW" | sudo debconf-set-selections
+	do_install "mysql-client mysql-server" "MySQL"
+	echo "[client]\nuser=root\npassword=$MYSQL_PW\ndatabase=staging_prod\n" > ~/.my.cnf
+else
+	MYSQL_PW=`cat ~/.my.cnf | sed -n -e "s/password=\(.*\)/\1/p"`
+	echo -e "${BLUE}MySQL${NONE} already installed, skipping..."
+fi
 
 # Then install php5 and the mysql driver
 do_install "php5 php5-mysql" "PHP 5"
@@ -91,16 +102,15 @@ while true; do
 	read importmysql
 	case $importmysql in
 		[yY] )
-			# Do actual DB import
+			# Do actual DB import, makes use of ~/.my.cnf for auto-authentication
 			echo -e "Importing ${BLUE}MySQL${NONE} database.";
-			read -sp "MySQL root password: " MYSQL_PW;
-			mysql -u root -p$MYSQL_PW < staging_prod.sql;
+			mysql < staging_prod.sql;
 			echo -e "\nImport ${GREEN}complete${NONE}.";
 
 			# Now, copy over path.php and fill in the actual mysql password chosen
-			cd /swcombine/libs
+			pushd /swcombine/libs
 			cat path.template.php | sed -e "s/db\.pass', 'swc'/db.pass', '$MYSQL_PW'/" > path.php
-			cd ~
+			popd
 			break;;
 		[nN] )
 			echo -e "${BLUE}Skipping${NONE} MySQL import.";
@@ -124,6 +134,17 @@ fi
 if [ ! -d /swcombine/logs ]; then
 	sudo mkdir /swcombine/logs
 	chmod 0777 /swcombine/logs
+fi
+
+# Install PHPUnit for running unit tests
+echo -e "Configuring ${BLUE}PHPUnit${NONE}"
+if [ -e "/usr/local/bin/phpunit" ]; then
+	echo -e "PHPUnit ${GREEN}already installed${NONE}, skipping.";
+else
+	wget https://phar.phpunit.de/phpunit.phar;
+	chmod +x phpunit.phar;
+	sudo mv phpunit.phar /usr/local/bin/phpunit
+	echo -e "PHPUnit ${GREEN}installed${NONE} to ${BLUE}/usr/local/bin/phpunit${NONE}"
 fi
 
 echo -e "${BLUE}SWC VM server${NONE} setup ${GREEN}complete${NONE}."

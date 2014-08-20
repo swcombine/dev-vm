@@ -39,7 +39,7 @@ if [ $? -ne 0 ]; then
 	echo "mysql-server-5.5 mysql-server/root_password password $MYSQL_PW" | sudo debconf-set-selections
 	echo "mysql-server-5.5 mysql-server/root_password_again password $MYSQL_PW" | sudo debconf-set-selections
 	do_install "mysql-client mysql-server" "MySQL"
-	echo "[client]\nuser=root\npassword=$MYSQL_PW\ndatabase=staging_prod\n" > ~/.my.cnf
+	echo -e "[client]\nuser=root\npassword=$MYSQL_PW\n" > ~/.my.cnf
 else
 	MYSQL_PW=`cat ~/.my.cnf | sed -n -e "s/password=\(.*\)/\1/p"`
 	echo -e "${BLUE}MySQL${NONE} already installed, skipping..."
@@ -96,6 +96,7 @@ else
 fi
 
 # Perform initial mysql configuration
+CREATE_DB=0
 while true; do
 	echo -e "Would you like to import the MySQL database, overwriting your current one (y/n)?"
 	echo -e "${BLUE}Note:${NONE} This step is required to set up path.php correctly the first time."
@@ -106,6 +107,8 @@ while true; do
 			echo -e "Importing ${BLUE}MySQL${NONE} database.";
 			mysql < staging_prod.sql;
 			echo -e "\nImport ${GREEN}complete${NONE}.";
+
+			CREATE_DB=1
 
 			# Now, copy over path.php and fill in the actual mysql password chosen
 			pushd /swcombine/libs
@@ -120,6 +123,11 @@ while true; do
 			;;
 	esac
 done
+
+cat ~/.my.cnf | sed -n -e "/database/p" | grep "database" > /dev/null
+if [ $? -ne 0 && $CREATE_DB -ne 0 ]; then
+	echo -e "database=staging_prod\n" >> ~/.my.cnf
+fi
 
 # Configure cron jobs
 echo -e "Configuring ${BLUE}cron jobs${NONE}"

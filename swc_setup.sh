@@ -48,32 +48,40 @@ fi
 # Then install php5 and the mysql driver
 do_install "php5 php5-mysql" "PHP 5"
 
-# Last, install svn because it isn't a default for some reason
-do_install "subversion" "SVN"
+# Make sure git is installed/updated
+do_install "git" "git"
 
 # Configure the SWC repository at /swcombine
 while true; do
-	echo -e "Would you like to ${BLUE}download${NONE} the svn repository or ${BLUE}use an existing${NONE} local copy?\n\t[1] Download\n\t[2] Use existing."
-	read dlsvn
-	case $dlsvn in
+	echo -e "Would you like to ${BLUE}download${NONE} the git repository or ${BLUE}use an existing${NONE} local copy?\n\t[1] Download\n\t[2] Use existing."
+	read dlgit
+	case $dlgit in
 		1 )
-			echo -e "Downloading SVN repository to ${BLUE}/swcombine${NONE}. When prompted, enter your svn credentials";
+			echo -e "Downloading git repository to ${BLUE}/swcombine${NONE}. When prompted, enter your git credentials (this will happen twice)";
 			sudo mkdir /swcombine;
 			sudo chown $REAL_USER /swcombine;
-			svn co http://svn.swcombine.com/svn/swcombine/trunk /swcombine;
+			git clone http://svn.swcombine.com/git/swcombine.git /swcombine;
+			pushd /swcombine
+			git config credential.helper store
+			echo -e "Enter your developer username";
+			read gitname
+			git config user.name $gitname
+			git config user.email ${gitname}@swcombine.com
+			git fetch origin
+			popd
 			break;;
 		2 )
-			echo -n -e "Enter the location of the existing SVN repository [${BLUE}/mnt/swcombine${NONE}]: "
-			read svnpath
-			if [ -d "$svnpath" ]; then
-				if [ "$svnpath" = "/swcombine" ]; then
+			echo -n -e "Enter the location of the existing git repository checkout [${BLUE}/mnt/swcombine${NONE}]: "
+			read gitpath
+			if [ -d "$gitpath" ]; then
+				if [ "$gitpath" = "/swcombine" ]; then
 					echo -e "SWC already mounted correctly at ${BLUE}/swcombine${NONE}, skipping...";
 				else
-					echo -e "Creating symlink from ${BLUE}/swcombine${NONE} to ${BLUE}$svnpath${NONE}.";
-					ln -s /swcombine $svnpath;
+					echo -e "Creating symlink from ${BLUE}/swcombine${NONE} to ${BLUE}$gitpath${NONE}.";
+					ln -s /swcombine $gitpath;
 				fi;
 			else
-				echo -e "Supplied path ${BLUE}$svnpath${NONE} ${RED}does not exist${NONE}. Please check it and try again.";
+				echo -e "Supplied path ${BLUE}$gitpath${NONE} ${RED}does not exist${NONE}. Please check it and try again.";
 				exit 1;
 			fi;
 			break;;
@@ -81,6 +89,11 @@ while true; do
 			;;
 	esac
 done
+
+# Configure hooks repository in ~/hooks
+pushd ~
+git clone http://svn.swcombine.com/git/hooks.git
+popd
 
 # Configure apache to point to /swcombine and process php
 echo -e "Configuring ${BLUE}Apache and PHP${NONE}"
@@ -129,6 +142,22 @@ if [ $? -ne 0 && $CREATE_DB -ne 0 ]; then
 	echo -e "database=staging_prod\n" >> ~/.my.cnf
 fi
 
+# Install Nodejs for build environment
+do_install "curl" "cURL"
+curl -sL https://deb.nodesource.com/setup | sudo bash -
+do_install "nodejs" "Node.js"
+sudo npm install -g less
+sudo npm install -g less-plugin-clean-css
+
+# Configure build script stuff
+pushd /swcombine/build
+cp path.sh.template path.sh
+if [ -z $SWC_ROOT ]; then
+	echo "export SWC_ROOT=/swcombine" >> ~/.bashrc
+	echo "export PATH=\"\$PATH:~/hooks/cmds" >> ~/.bashrc
+fi
+popd
+
 # Configure cron jobs
 echo -e "Configuring ${BLUE}cron jobs${NONE}"
 sudo crontab -u root -l 2>/dev/null | grep "swcombine" > /dev/null
@@ -154,5 +183,15 @@ else
 	sudo mv phpunit.phar /usr/local/bin/phpunit
 	echo -e "PHPUnit ${GREEN}installed${NONE} to ${BLUE}/usr/local/bin/phpunit${NONE}"
 fi
+
+# Configure some stuff in /tmp that we expect to exist, apparently
+mkdir /tmp/feeds
+touch /tmp/feeds/gns_flashnews.xml
+sudo chown -R www-data:www-data /tmp/feeds
+sudo chmod 0777 -R /tmp/feeds
+
+# Run build once to ensure that the site will look decent when it is loaded
+echo -e "Running ${BLUE}git swc build${NONE} to create initial stylesheets"
+git swc build
 
 echo -e "${BLUE}SWC VM server${NONE} setup ${GREEN}complete${NONE}."

@@ -138,7 +138,7 @@ while true; do
 done
 
 cat ~/.my.cnf | sed -n -e "/database/p" | grep "database" > /dev/null
-if [ $? -ne 0 && $CREATE_DB -ne 0 ]; then
+if [ ($? -ne 0) -a ($CREATE_DB -ne 0) ]; then
 	echo -e "database=staging_prod\n" >> ~/.my.cnf
 fi
 
@@ -154,7 +154,8 @@ pushd /swcombine/build
 cp path.sh.template path.sh
 if [ -z $SWC_ROOT ]; then
 	echo "export SWC_ROOT=/swcombine" >> ~/.bashrc
-	echo "export PATH=\"\$PATH:~/hooks/cmds" >> ~/.bashrc
+	echo "export PATH=\$PATH:~/hooks/cmds" >> ~/.bashrc
+	export PATH=\$PATH:~/hooks/cmds
 fi
 popd
 
@@ -185,13 +186,27 @@ else
 fi
 
 # Configure some stuff in /tmp that we expect to exist, apparently
-mkdir /tmp/feeds
-touch /tmp/feeds/gns_flashnews.xml
-sudo chown -R www-data:www-data /tmp/feeds
-sudo chmod 0777 -R /tmp/feeds
+# Doesn't seem to be expected anymore
+#mkdir /tmp/feeds
+#touch /tmp/feeds/gns_flashnews.xml
+#sudo chown -R www-data:www-data /tmp/feeds
+#sudo chmod 0777 -R /tmp/feeds
 
 # Run build once to ensure that the site will look decent when it is loaded
 echo -e "Running ${BLUE}git swc build${NONE} to create initial stylesheets"
 git swc build
 
-echo -e "${BLUE}SWC VM server${NONE} setup ${GREEN}complete${NONE}."
+echo -e "${BLUE}SWC VM server${NONE} auto setup ${GREEN}complete${NONE}."
+
+# Tell user about remaining manual setup
+if [ $CREATE_DB -ne 0 ]; then
+	echo -e "Now go to /swcombine/database/schema and run the SQL files there starting at 63."
+	echo -e "This can be done with 'mysql < {name of file}'."
+	echo -e "Then go to /swcombine/database/scripts and running the following php scripts with 'php -f {name of file}'."
+	echo -e "hostileOwner.php"
+	echo -e "newPrivScript.php"
+	echo -e "Finally, go to /swcombine/database/vm-schema and run create_admin.sql in the same way as above."
+	echo -e "This will allow you to login with 'admin@localhost' and '_PASS_'."
+	
+	echo -e "${BLUE}SWC VM server${NONE} setup will then be ${GREEN}complete${NONE}."
+fi

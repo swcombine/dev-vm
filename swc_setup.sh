@@ -104,6 +104,8 @@ else
 	sudo rm /etc/apache2/sites-enabled/000-default
 	sudo chmod 0777 /etc/php5/apache2/php.ini
 	echo "include_path = \".:/swcombine/libs\"" >> /etc/php5/apache2/php.ini
+	sudo chmod 0777 /etc/php5/cli/php.ini
+        echo "include_path = \".:/swcombine/libs\"" >> /etc/php5/cli/php.ini
 	sudo service apache2 restart
 	echo -e "${GREEN}Successfully${NONE} configured apache and php";
 fi

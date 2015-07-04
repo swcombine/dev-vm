@@ -140,7 +140,7 @@ while true; do
 done
 
 cat ~/.my.cnf | sed -n -e "/database/p" | grep "database" > /dev/null
-if [ ($? -ne 0) -a ($CREATE_DB -ne 0) ]; then
+if [ $? -ne 0 -a $CREATE_DB -ne 0 ]; then
 	echo -e "database=staging_prod\n" >> ~/.my.cnf
 fi
 
@@ -156,8 +156,8 @@ pushd /swcombine/build
 cp path.sh.template path.sh
 if [ -z $SWC_ROOT ]; then
 	echo "export SWC_ROOT=/swcombine" >> ~/.bashrc
+	SWC_ROOT=/swcombine
 	echo "export PATH=\$PATH:~/hooks/cmds" >> ~/.bashrc
-	export PATH=\$PATH:~/hooks/cmds
 fi
 popd
 
@@ -173,7 +173,7 @@ fi
 
 if [ ! -d /swcombine/logs ]; then
 	sudo mkdir /swcombine/logs
-	chmod 0777 /swcombine/logs
+	sudo chmod 0777 /swcombine/logs
 fi
 
 # Install PHPUnit for running unit tests
@@ -188,15 +188,16 @@ else
 fi
 
 # Configure some stuff in /tmp that we expect to exist, apparently
-# Doesn't seem to be expected anymore
-#mkdir /tmp/feeds
-#touch /tmp/feeds/gns_flashnews.xml
-#sudo chown -R www-data:www-data /tmp/feeds
-#sudo chmod 0777 -R /tmp/feeds
+mkdir /tmp/feeds
+touch /tmp/feeds/gns_flashnews.xml
+sudo chown -R www-data:www-data /tmp/feeds
+sudo chmod 0777 -R /tmp/feeds
 
 # Run build once to ensure that the site will look decent when it is loaded
 echo -e "Running ${BLUE}git swc build${NONE} to create initial stylesheets"
-git swc build
+#git swc build
+# Changed to manual call as could not get PATH to work
+~/hooks/cmds/git-swc build
 
 echo -e "${BLUE}SWC VM server${NONE} auto setup ${GREEN}complete${NONE}."
 

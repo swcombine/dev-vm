@@ -46,7 +46,7 @@ else
 fi
 
 # Then install php5 and the mysql driver
-do_install "php5 php5-mysql" "PHP 5"
+do_install "php5 php5-mysql php5-gd" "PHP 5"
 
 # Make sure git is installed/updated
 do_install "git" "git"
@@ -104,6 +104,8 @@ else
 	sudo rm /etc/apache2/sites-enabled/000-default
 	sudo chmod 0777 /etc/php5/apache2/php.ini
 	echo "include_path = \".:/swcombine/libs\"" >> /etc/php5/apache2/php.ini
+	sudo chmod 0777 /etc/php5/cli/php.ini
+	echo "include_path = \".:/swcombine/libs\"" >> /etc/php5/cli/php.ini
 	sudo service apache2 restart
 	echo -e "${GREEN}Successfully${NONE} configured apache and php";
 fi
@@ -138,8 +140,41 @@ while true; do
 done
 
 cat ~/.my.cnf | sed -n -e "/database/p" | grep "database" > /dev/null
-if [ $? -ne 0 && $CREATE_DB -ne 0 ]; then
+if [ $? -ne 0 -a $CREATE_DB -ne 0 ]; then
 	echo -e "database=staging_prod\n" >> ~/.my.cnf
+fi
+
+# Do advanced mysql configuration
+if [ $CREATE_DB -ne 0 ]; then
+    pushd /swcombine/database/schema
+
+    maxdbversion=$( ls | grep "^[0-9]\+_" -c )
+    maxdbversionscript=$( ls | grep "^${maxdbversion}_" )
+    
+    echo -e "Enter the database version to start at: "
+    echo -e "${BLUE}Note:${NONE} This is currently 63. If unsure, check with one of the other devs."
+    read dbversion
+    
+    if [ -z $dbversion ]; then
+        $dbversion=63
+    fi
+    
+    for i in `seq $dbversion $maxdbversion`;
+    do
+        echo -e "Updating database to version $i"
+        mysql < $( ls | grep "^${i}_" )
+    done
+    
+    echo -e "INSERT INTO staging_prod.trackerSchema VALUES('${maxdbversion}', '${maxdbversionscript}', UNIX_TIMESTAMP());" | mysql
+    
+    popd
+    
+    pushd /swcombine/database/scripts
+    
+    php -f "hostileOwner.php"
+    php -f "newPrivScript.php"
+    
+    popd
 fi
 
 # Install Nodejs for build environment
@@ -154,7 +189,9 @@ pushd /swcombine/build
 cp path.sh.template path.sh
 if [ -z $SWC_ROOT ]; then
 	echo "export SWC_ROOT=/swcombine" >> ~/.bashrc
-	echo "export PATH=\"\$PATH:~/hooks/cmds" >> ~/.bashrc
+	export SWC_ROOT=/swcombine
+	echo "export PATH=\$PATH:~/hooks/cmds" >> ~/.bashrc
+	PATH=$PATH:~/hooks/cmds
 fi
 popd
 
@@ -170,7 +207,7 @@ fi
 
 if [ ! -d /swcombine/logs ]; then
 	sudo mkdir /swcombine/logs
-	chmod 0777 /swcombine/logs
+	sudo chmod 0777 /swcombine/logs
 fi
 
 # Install PHPUnit for running unit tests
@@ -195,3 +232,5 @@ echo -e "Running ${BLUE}git swc build${NONE} to create initial stylesheets"
 git swc build
 
 echo -e "${BLUE}SWC VM server${NONE} setup ${GREEN}complete${NONE}."
+echo -e "Ask a dev about login into your shiny new ${BLUE}SWC VM server${NONE}"
+
